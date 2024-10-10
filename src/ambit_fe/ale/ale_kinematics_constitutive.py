@@ -48,6 +48,12 @@ class constitutive:
 
                 stress += mat.diffusion(matparams_m)
 
+            # STARTING: OTTAR HELLAN, 2024.10.07
+            elif matlaw == 'weak_form_don':
+
+                stress += mat.weak_form_don(matparams_m)
+            # ENDING: OTTAR HELLAN, 2024.10.07
+
             elif matlaw == 'diffusion_rate':
 
                 stress += mat.diffusion_rate(matparams_m)

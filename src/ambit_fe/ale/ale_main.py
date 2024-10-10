@@ -189,6 +189,21 @@ class AleProblem(problem_base):
         self.K_list, self.K_list_rom = [[None]*self.nfields for _ in range(self.nfields)],  [[None]*self.nfields for _ in range(self.nfields)]
 
 
+        # STARTING: OTTAR HELLAN, 2024.10.07
+
+        if int(dolfinx.__version__[2]) >= 8: # If version 0.8.0 or higher
+            T = fem.functionspace(self.V_d.mesh, ("CG", 1, (2, 2)))
+        else:
+            T = fem.TensorFunctionSpace(self.V_d.mesh, ("CG", 1), shape=(2, 2))
+
+        from .ale_external import add_my_hook
+        self.residual_assembly_hooks = []
+        assert 'MAT1' in constitutive_models and len(constitutive_models) == 1
+        if 'weak_form_don' in constitutive_models["MAT1"]:
+            self.residual_assembly_hooks.append(add_my_hook(constitutive_models["MAT1"]["weak_form_don"]["model_path"], self.V_d, T))
+            
+        # ENDING: OTTAR HELLAN, 2024.10.07
+
     def get_problem_var_list(self):
 
         is_ghosted = [1]
@@ -250,6 +265,14 @@ class AleProblem(problem_base):
         # assemble rhs vector
         with self.r_d.localForm() as r_local: r_local.set(0.0)
         fem.petsc.assemble_vector(self.r_d, self.res_d)
+
+        # STARTING: OTTAR HELLAN, 2024.10.07
+
+        for hook in self.residual_assembly_hooks:
+            hook(t, self.d.vector, self.r_d)
+
+        # ENDING: OTTAR HELLAN, 2024.10.07
+
         fem.apply_lifting(self.r_d, [self.jac_dd], [self.bc.dbcs], x0=[self.d.vector], scale=-1.0)
         self.r_d.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
         fem.set_bc(self.r_d, self.bc.dbcs, x0=self.d.vector, scale=-1.0)

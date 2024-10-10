@@ -33,6 +33,18 @@ class materiallaw:
 
         return fac * D*ufl.grad(self.d)
 
+    # STARTING: OTTAR HELLAN, 2024.10.07
+    def weak_form_don(self, params):
+        # This is the poisson part of the weak form DON model.
+        # In addition, the model includes a DeepONet-contribution to
+        # the residual, which is added by a hook in the 
+        # AleProblem.assemble_residual()-method.
+
+        # We ignore the DeepONet's contribution to the jacobian, as it is
+        # dense and a quasi-Newton method is probably more efficient,
+        # and certainly easier to implement.
+        return ufl.grad(self.d)
+    # ENDING: OTTAR HELLAN, 2024.10.07
 
     def diffusion_rate(self, params):
 

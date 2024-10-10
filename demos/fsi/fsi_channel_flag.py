@@ -18,6 +18,8 @@ def main():
     try: restart_step = int(sys.argv[1])
     except: restart_step = 0
 
+    restart_step = 0
+    
     case = 'FSI2' # 'FSI2', 'FSI3'
 
     # cases from Tab. 12, Turek et al. 2006
@@ -33,6 +35,7 @@ def main():
         Ubar = 1e3 # mm/s
         # max simulation time until periodic
         maxtime = 15.0
+        maxtime = 12.0
         dt_ref = 0.0005
         dt_large = 0.004
     elif case=='FSI3':
@@ -65,10 +68,10 @@ def main():
                             'USE_OLD_DOLFINX_MIXED_BRANCH' : True,
                             # at which step frequency to write results
                             'write_results_every'   : 1,
-                            'write_restart_every'   : -1,
+                            'write_restart_every'   : 250,
                             'restart_step'          : restart_step,
                             # where to write the output to
-                            'output_path'           : basepath+'/tmp/',
+                            'output_path'           : basepath+'/tmp',
                             'mesh_domain'           : basepath+'/input/channel-flag_domain.xdmf',
                             'mesh_boundary'         : basepath+'/input/channel-flag_boundary.xdmf',
                             'results_to_write'      : [['displacement','velocity'], [['fluiddisplacement','velocity','pressure'],['aledisplacement','alevelocity']]],
@@ -148,7 +151,8 @@ def main():
                                       'inertia'   : {'rho' : rho_f}}}
     
     # nonlinear material for domain motion problem: This has proved superior to the linear elastic model for large mesh deformations
-    MATERIALS_ALE        = {'MAT1' : {'exponential' : {'a_0' : 1.0, 'b_0' : 10.0, 'kappa' : 1e2}}}
+    # MATERIALS_ALE        = {'MAT1' : {'exponential' : {'a_0' : 1.0, 'b_0' : 10.0, 'kappa' : 1e2}}}
+    MATERIALS_ALE        = {'MAT1' : {'weak_form_don' : {"model_path": basepath+"/input/wfambit002/model"}}}
 
 
     """
@@ -192,6 +196,9 @@ def main():
     # Call the Ambit solver to solve the problem
     problem.solve_problem()
 
+    import dolfinx as dfx
+    from mpi4py.MPI import COMM_WORLD
+    dfx.common.list_timings(COMM_WORLD, [dfx.common.TimingType.wall])
 
 
 if __name__ == "__main__":

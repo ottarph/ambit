@@ -1,0 +1,22 @@
+# STARTING: OTTAR HELLAN, 2024.10.07
+
+# Builds on Dockerfile_devenv_old to additionally install cpu-version jax and pytorch.
+FROM ghcr.io/marchirschvogel/ambit:devenvold
+
+
+# Install pytorch cpu version
+RUN python3 -m pip install --no-cache-dir --root-user-action torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install jax cpu version
+RUN python3 -m pip install --no-cache-dir --root-user-action jax
+
+# Install pyvista-requirement vtk
+RUN python3 -m pip install --no-cache-dir --root-user-action vtk
+
+# Install pyvista
+RUN python3 -m pip install --no-cache-dir --root-user-action pyvista
+
+# Install everything else
+RUN python3 -m pip install --no-cache-dir --root-user-action tqdm pdbpp
+
+# ENDING: OTTAR HELLAN, 2024.10.07
