@@ -330,6 +330,10 @@ class FSIProblem(problem_base):
         self.pbs.write_output(N, t)
         self.pbfa.write_output(N, t)
 
+        # STARTING: OTTAR HELLAN, 2024.10.08
+        for hook in getattr(self, "output_hooks", []):
+            hook(self, N, t)
+        # ENDING: OTTAR HELLAN, 2024.10.08
 
     def update(self):
 

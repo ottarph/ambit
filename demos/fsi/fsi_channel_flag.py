@@ -18,7 +18,7 @@ def main():
     try: restart_step = int(sys.argv[1])
     except: restart_step = 0
 
-    restart_step = 0
+    restart_step = 2500
     
     case = 'FSI2' # 'FSI2', 'FSI3'
 
@@ -35,7 +35,7 @@ def main():
         Ubar = 1e3 # mm/s
         # max simulation time until periodic
         maxtime = 15.0
-        maxtime = 12.0
+        maxtime = 10.8
         dt_ref = 0.0005
         dt_large = 0.004
     elif case=='FSI3':
@@ -192,6 +192,15 @@ def main():
 
     # Pass parameters to Ambit to set up the problem
     problem = ambit_fe.ambit_main.Ambit(IO_PARAMS, [TIME_PARAMS_SOLID, TIME_PARAMS_FLUID], SOLVER_PARAMS, [FEM_PARAMS_SOLID, FEM_PARAMS_FLUID, FEM_PARAMS_ALE], [MATERIALS_SOLID, MATERIALS_FLUID, MATERIALS_ALE], [BC_DICT_SOLID, BC_DICT_FLUID, BC_DICT_ALE], coupling_params=COUPLING_PARAMS)
+
+    from output_hooks import DragHook, LiftHook, DragCornerHook, DetFCornerHook
+
+    qoi_base_path = IO_PARAMS["output_path"]+'/results_'+IO_PARAMS["simname"]+f'_r{restart_step}'*(restart_step>0)
+    problem.mp.output_hooks = [
+        DragHook(problem.mp, mu_f, qoi_base_path+'_drag.txt', interface_tag=1, obstacle_tag=2),
+        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift.txt', interface_tag=1, obstacle_tag=2),
+    ]
+
 
     # Call the Ambit solver to solve the problem
     problem.solve_problem()
