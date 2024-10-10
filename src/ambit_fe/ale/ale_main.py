@@ -196,12 +196,15 @@ class AleProblem(problem_base):
         else:
             T = fem.TensorFunctionSpace(self.V_d.mesh, ("CG", 1), shape=(2, 2))
 
-        from .ale_external import add_my_hook
+        from .ale_external import add_my_hook, add_my_hook_parallel
         self.residual_assembly_hooks = []
         assert 'MAT1' in constitutive_models and len(constitutive_models) == 1
         if 'weak_form_don' in constitutive_models["MAT1"]:
-            self.residual_assembly_hooks.append(add_my_hook(constitutive_models["MAT1"]["weak_form_don"]["model_path"], self.V_d, T))
-            
+            if self.V_d.mesh.comm.size == 0:
+                self.residual_assembly_hooks.append(add_my_hook(constitutive_models["MAT1"]["weak_form_don"]["model_path"], self.V_d, T))
+            else:
+                self.residual_assembly_hooks.append(add_my_hook_parallel(constitutive_models["MAT1"]["weak_form_don"]["model_path"], self.V_d, T))
+
         # ENDING: OTTAR HELLAN, 2024.10.07
 
     def get_problem_var_list(self):
