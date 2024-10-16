@@ -191,10 +191,11 @@ class AleProblem(problem_base):
 
         # STARTING: OTTAR HELLAN, 2024.10.07
 
+        T_degree = 2
         if int(dolfinx.__version__[2]) >= 8: # If version 0.8.0 or higher
-            T = fem.functionspace(self.V_d.mesh, ("CG", 1, (2, 2)))
+            T = fem.functionspace(self.V_d.mesh, ("CG", T_degree, (2, 2)))
         else:
-            T = fem.TensorFunctionSpace(self.V_d.mesh, ("CG", 1), shape=(2, 2))
+            T = fem.TensorFunctionSpace(self.V_d.mesh, ("CG", T_degree), shape=(2, 2))
 
         from .ale_external import add_my_hook, add_my_hook_parallel
         self.residual_assembly_hooks = []

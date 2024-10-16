@@ -15,7 +15,7 @@ def main():
     basepath = str(Path(__file__).parent.absolute())
 
     # reads in restart step from the command line
-    try: restart_step = int(sys.argv[1])
+    try: import sys; restart_step = int(sys.argv[1])
     except: restart_step = 0
 
     restart_step = 2500
@@ -152,7 +152,7 @@ def main():
     
     # nonlinear material for domain motion problem: This has proved superior to the linear elastic model for large mesh deformations
     # MATERIALS_ALE        = {'MAT1' : {'exponential' : {'a_0' : 1.0, 'b_0' : 10.0, 'kappa' : 1e2}}}
-    MATERIALS_ALE        = {'MAT1' : {'weak_form_don' : {"model_path": basepath+"/input/wfambit002/model"}}}
+    MATERIALS_ALE        = {'MAT1' : {'weak_form_don' : {"model_path": basepath+"/input/models/wfambit002/model"}}}
 
 
     """
@@ -199,6 +199,28 @@ def main():
     problem.mp.output_hooks = [
         DragHook(problem.mp, mu_f, qoi_base_path+'_drag.txt', interface_tag=1, obstacle_tag=2),
         LiftHook(problem.mp, mu_f, qoi_base_path+'_lift.txt', interface_tag=1, obstacle_tag=2),
+        DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner.txt'),
+        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner.txt'),
+        DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q0.txt', interface_tag=1, obstacle_tag=2, quad_degree=0),
+        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q0.txt', interface_tag=1, obstacle_tag=2, quad_degree=0),
+        DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q0.txt', quad_degree=0),
+        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner_q0.txt', quad_degree=0),
+        DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q1.txt', interface_tag=1, obstacle_tag=2, quad_degree=1),
+        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q1.txt', interface_tag=1, obstacle_tag=2, quad_degree=1),
+        DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q1.txt', quad_degree=1),
+        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner_q1.txt', quad_degree=1),
+        DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q2.txt', interface_tag=1, obstacle_tag=2, quad_degree=2),
+        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q2.txt', interface_tag=1, obstacle_tag=2, quad_degree=2),
+        DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q2.txt', quad_degree=2),
+        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner_q2.txt', quad_degree=2),
+        DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q3.txt', interface_tag=1, obstacle_tag=2, quad_degree=3),
+        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q3.txt', interface_tag=1, obstacle_tag=2, quad_degree=3),
+        DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q3.txt', quad_degree=3),
+        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner_q3.txt', quad_degree=3),
+        DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q4.txt', interface_tag=1, obstacle_tag=2, quad_degree=4),
+        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q4.txt', interface_tag=1, obstacle_tag=2, quad_degree=4),
+        DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q4.txt', quad_degree=4),
+        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner_q4.txt', quad_degree=4),
     ]
 
 

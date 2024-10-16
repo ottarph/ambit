@@ -13,3 +13,6 @@ __pycache__/
 *.bbl
 src/ambit_fe/electrophysiology/
 tests/test_electrophysiology.py
+
+models
+checkpoints
