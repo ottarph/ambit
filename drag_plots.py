@@ -5,10 +5,10 @@ results_base = "demos/fsi/tmp/results_fsi_channel_flag_turek_FSI2_r2000_"
 results_base = "demos/fsi/tmp/results_fsi_channel_flag_turek_FSI2_r2500_"
 results_base = "demos/fsi/tmp_1proc/results_fsi_channel_flag_turek_FSI2_"
 results_base = "demos/fsi/tmp_tri/16proc/results_fsi_channel_flag_turek_FSI2_"
-# results_base = "demos/fsi/tmp_tri/16proc/results_fsi_channel_flag_turek_FSI2_r3000_"
+results_base = "demos/fsi/tmp_tri/16proc/results_fsi_channel_flag_turek_FSI2_r3500_"
 results_post = ".txt"
 
-ADD_REF = False
+ADD_REF = True
 TIME_CROP = True
 REFERENCE_SLICE = 1
 if ADD_REF:
@@ -16,14 +16,13 @@ if ADD_REF:
     REF_STYLE = "k-"
 else:
     DON_STYLE = "k-"
-crop_a, crob_b = 10.0, 11.5
+crop_a, crob_b = 12.0, 14.0
 
 
 time = np.loadtxt(results_base+"drag"+results_post, skiprows=1, delimiter=',')[:,0]
 drag = np.loadtxt(results_base+"drag"+results_post, skiprows=1, delimiter=',')[:,1]
 lift = np.loadtxt(results_base+"lift"+results_post, skiprows=1, delimiter=',')[:,1] * -1
 dragcr = np.loadtxt(results_base+"drag_corner"+results_post, skiprows=1, delimiter=',')[:,1]
-detF = np.loadtxt(results_base+"detf_corner"+results_post, skiprows=1, delimiter=',')[:,1]
 
 if TIME_CROP:
     eps = 1e-6
@@ -33,7 +32,6 @@ if TIME_CROP:
     drag = drag[inds]
     lift = lift[inds]
     dragcr = dragcr[inds]
-    detF = detF[inds]
 
 
 if ADD_REF:
@@ -98,27 +96,4 @@ plt.xlim(time.min(), time.max())
 plt.title(f"quad_deg = {results_post[2]}" if len(results_post) > 4 else None)
 plt.savefig("dragcr.pdf")
 
-
-plt.figure()
-
-plt.plot(time, (drag-dragcr), 'k-')
-
-plt.xlabel("time")
-plt.ylabel("drag minus corner contribution")
-plt.xlim(time.min(), time.max())
-
-plt.savefig("drag_diff_arr.pdf")
-
-
-print(f"{detF.mean() = }")
-
-plt.figure()
-
-plt.plot(time, detF, 'k-')
-
-plt.xlabel("time")
-plt.ylabel("detF")
-plt.xlim(time.min(), time.max())
-
-plt.savefig("detF.pdf")
 

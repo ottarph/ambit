@@ -16,3 +16,5 @@ tests/test_electrophysiology.py
 
 models
 checkpoints
+demos/fsi/tmp*
+demos/fsi/input/*.xdmf
