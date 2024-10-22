@@ -298,6 +298,7 @@ def add_my_hook_parallel(model_path: PathLike, V_d: fem.FunctionSpace, T: fem.Fu
 
     # Define functions to collect inputs and build corrections to residual
   
+    @dfx.common.timed("collect_branch_inputs")
     def collect_branch_inputs(global_inputs: np.ndarray[np.float64] | None, local_inputs: np.ndarray[np.float64], 
                               local_input_targets: np.ndarray[np.int32], local_input_sources: np.ndarray[np.int32], 
                               x: PETSc.Vec) -> None:
@@ -316,11 +317,19 @@ def add_my_hook_parallel(model_path: PathLike, V_d: fem.FunctionSpace, T: fem.Fu
 
         return
     
+    @dfx.common.timed("scatter_branch_outputs")
+    def scatter_branch_outputs(global_outputs: np.ndarray[np.float64]):
+        comm = MPI.COMM_WORLD
+
+        comm.Bcast(global_outputs, root=0)
+
+        return
     
+    @dfx.common.timed("build_correction")
     def build_correction(correction_basis: np.ndarray, branch_output: np.ndarray) -> np.ndarray:
         return jnp.einsum("pi,p->i", correction_basis, branch_output)
 
-
+    @dfx.common.timed("insert_correction")
     def insert_correction(correction: np.ndarray, x: PETSc.Vec) -> None:
 
         # print(f"{x.comm.rank = }, {correction.shape = }, {x.local_size = }")
@@ -347,7 +356,7 @@ def add_my_hook_parallel(model_path: PathLike, V_d: fem.FunctionSpace, T: fem.Fu
         else:
             global_branch_outputs *= 0.0
 
-        comm.Bcast(global_branch_outputs, root=0)
+        scatter_branch_outputs(global_branch_outputs)
 
         local_correction = build_correction(local_correction_basis, global_branch_outputs)
 
