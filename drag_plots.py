@@ -9,7 +9,7 @@ results_base = "demos/fsi/tmp_tri/16proc/results_fsi_channel_flag_turek_FSI2_r35
 results_post = ".txt"
 
 ADD_REF = True
-TIME_CROP = True
+TIME_CROP = False
 REFERENCE_SLICE = 1
 if ADD_REF:
     DON_STYLE = "r:"
@@ -23,6 +23,10 @@ time = np.loadtxt(results_base+"drag"+results_post, skiprows=1, delimiter=',')[:
 drag = np.loadtxt(results_base+"drag"+results_post, skiprows=1, delimiter=',')[:,1]
 lift = np.loadtxt(results_base+"lift"+results_post, skiprows=1, delimiter=',')[:,1] * -1
 dragcr = np.loadtxt(results_base+"drag_corner"+results_post, skiprows=1, delimiter=',')[:,1]
+minimumJ = np.loadtxt(results_base+"minimumDetF"+results_post, skiprows=1, delimiter=',')[:,1]
+minimizerJ_val = np.loadtxt(results_base+"minimizerDetF"+results_post, skiprows=1, delimiter=',')[:,1]
+minimizerJ_x = np.loadtxt(results_base+"minimizerDetF"+results_post, skiprows=1, delimiter=',')[:,2]
+minimizerJ_y = np.loadtxt(results_base+"minimizerDetF"+results_post, skiprows=1, delimiter=',')[:,3]
 
 if TIME_CROP:
     eps = 1e-6
@@ -97,3 +101,18 @@ plt.title(f"quad_deg = {results_post[2]}" if len(results_post) > 4 else None)
 plt.savefig("dragcr.pdf")
 
 
+plt.figure()
+
+plt.plot(time, minimizerJ_val, 'k-')
+
+plt.xlabel("time")
+plt.ylabel(r"$\mathrm{min}_x \; \mathrm{det} \; F(u(t,x))$")
+plt.xlim(time.min(), time.max())
+
+plt.savefig("minimumJ.pdf")
+
+min_ind = np.argmin(minimizerJ_val)
+min_x = minimizerJ_x[min_ind]
+min_y = minimizerJ_y[min_ind]
+print(f"{min_x = }")
+print(f"{min_y = }")

@@ -65,10 +65,6 @@ class DragHook:
         v = fsi_problem.pbfa.pbf.v
         p = fsi_problem.pbfa.pbf.p
 
-        # for f in [u, v, p]:
-        #     f.vector.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
-        #     f.vector.ghostUpdate(addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD)
-
         local_drag = dfx.fem.assemble_scalar(self.form)
 
         global_drag = self.comm.reduce(local_drag, op=MPI.SUM, root=0)
@@ -139,6 +135,111 @@ class LiftHook:
                 f.write(f"{t},{global_lift}\n")
 
         return
+    
+class minimumDetFHook:
+    def __init__(self, fsi_problem: FSIProblem, save_path: PathLike):
+
+        from tools.quadtriopt_minimum import minimum_quadratic_over_triangle
+        self.minimum_f = minimum_quadratic_over_triangle
+
+        self.save_path = save_path
+
+        msh = fsi_problem.iof.mesh
+        DG2 = dfx.fem.FunctionSpace(msh, ("DG", 2))
+        self.comm = msh.comm
+
+        self.ind_range = DG2.dofmap.index_map.size_local
+
+        u = fsi_problem.pbfa.pba.d
+        j_expr_ufl = ufl.det(ufl.Identity(msh.topology.dim) + ufl.grad(u))
+
+        self.j_expr = dfx.fem.Expression(j_expr_ufl, DG2.element.interpolation_points())
+        
+        self.j = dfx.fem.Function(DG2)
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "w") as f:
+                f.write("time,min j\n")
+
+        return
+    
+    @dfx.common.timed("minimumDetFHook")
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float):
+
+        self.j.interpolate(self.j_expr)
+
+        jh = self.j.x.array[:self.ind_range].reshape(-1, 6)
+
+        local_min_j = self.minimum_f(jh).min()
+
+        global_min_j = self.comm.reduce(local_min_j, op=MPI.MIN, root=0)
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "a") as f:
+                f.write(f"{t},{global_min_j}\n")
+
+        return
+    
+class minimizerDetFHook:
+    def __init__(self, fsi_problem: FSIProblem, save_path: PathLike):
+
+        from tools.quadtriopt_minimizer import minimizer_quadratic_over_triangle
+        from functools import partial
+        
+        self.save_path = save_path
+
+        msh = fsi_problem.iof.mesh
+        DG2 = dfx.fem.FunctionSpace(msh, ("DG", 2))
+        self.comm = msh.comm
+
+        self.ind_range = DG2.dofmap.index_map.size_local
+
+        xh = DG2.tabulate_dof_coordinates()[:self.ind_range,:].reshape(-1,6,3)[:,:3,:2]
+        self.minimum_f = partial(minimizer_quadratic_over_triangle, xh=xh)
+
+        u = fsi_problem.pbfa.pba.d
+        j_expr_ufl = ufl.det(ufl.Identity(msh.topology.dim) + ufl.grad(u))
+
+        self.j_expr = dfx.fem.Expression(j_expr_ufl, DG2.element.interpolation_points())
+        
+        self.j = dfx.fem.Function(DG2)
+
+        if self.comm.rank == 0:
+            self.rec_buffer = np.zeros((self.comm.size, 3))
+        else:
+            self.rec_buffer = None
+        
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "w") as f:
+                f.write("time,min j,x,y\n")
+
+        return
+    
+    @dfx.common.timed("minimizerDetFHook")
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float):
+
+        self.j.interpolate(self.j_expr)
+
+        jh = self.j.x.array[:self.ind_range].reshape(-1, 6)
+
+        cell_min_j = self.minimum_f(jh)
+        min_ind = np.argmin(cell_min_j[:,0])
+        message = cell_min_j[min_ind,:]
+
+        self.comm.Gather(message, self.rec_buffer, root=0)
+
+        if self.comm.rank == 0:
+
+            global_min_ind = np.argmin(self.rec_buffer[:,0])
+            global_min_j = self.rec_buffer[global_min_ind, 0]
+            global_min_x = self.rec_buffer[global_min_ind, 1]
+            global_min_y = self.rec_buffer[global_min_ind, 2]
+
+            with open(self.save_path, "a") as f:
+                f.write(f"{t},{global_min_j},{global_min_x},{global_min_y}\n")
+
+        return
 
 class DragCornerHook:
 
@@ -198,10 +299,6 @@ class DragCornerHook:
         v = fsi_problem.pbfa.pbf.v
         p = fsi_problem.pbfa.pbf.p
 
-        # for f in [u, v, p]:
-        #     f.vector.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
-        #     f.vector.ghostUpdate(addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD)
-
         local_drag = dfx.fem.assemble_scalar(self.form)
 
         global_drag = self.comm.reduce(local_drag, op=MPI.SUM, root=0)
@@ -260,10 +357,6 @@ class DetFCornerHook:
         u = fsi_problem.pbfa.pba.d
         v = fsi_problem.pbfa.pbf.v
         p = fsi_problem.pbfa.pbf.p
-
-        # for f in [u, v, p]:
-        #     f.vector.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
-        #     f.vector.ghostUpdate(addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD)
 
         local_drag = dfx.fem.assemble_scalar(self.form)
 

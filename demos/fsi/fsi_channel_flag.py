@@ -18,7 +18,7 @@ def main():
     try: import sys; restart_step = int(sys.argv[1])
     except: restart_step = 0
 
-    restart_step = 2500
+    restart_step = 3500
     
     case = 'FSI2' # 'FSI2', 'FSI3'
 
@@ -35,7 +35,7 @@ def main():
         Ubar = 1e3 # mm/s
         # max simulation time until periodic
         maxtime = 15.0
-        maxtime = 10.8
+        # maxtime = 14.0
         dt_ref = 0.0005
         dt_large = 0.004
     elif case=='FSI3':
@@ -57,7 +57,7 @@ def main():
 
     # dt_ref is the time step used to compute the reference solution of the original benchmark, cf. link above
     # dt_ref leads to 30000, dt_large to 3750 time steps in both cases
-    #dt = dt_ref
+    # dt = dt_ref
     dt = dt_large
 
     """
@@ -68,16 +68,27 @@ def main():
                             'USE_OLD_DOLFINX_MIXED_BRANCH' : True,
                             # at which step frequency to write results
                             'write_results_every'   : 1,
-                            'write_restart_every'   : 250,
+                            'write_restart_every'   : 0,
                             'restart_step'          : restart_step,
                             # where to write the output to
-                            'output_path'           : basepath+'/tmp',
-                            'mesh_domain'           : basepath+'/input/channel-flag_domain.xdmf',
-                            'mesh_boundary'         : basepath+'/input/channel-flag_boundary.xdmf',
-                            'results_to_write'      : [['displacement','velocity'], [['fluiddisplacement','velocity','pressure'],['aledisplacement','alevelocity']]],
+                            'output_path'           : basepath+'/tmp_tri/16proc',
+                            # 'output_path'           : basepath+'/tmp_exp',
+                            # 'mesh_domain'           : basepath+'/input/channel-flag_domain.xdmf',
+                            # 'mesh_boundary'         : basepath+'/input/channel-flag_boundary.xdmf',
+                            'mesh_domain': basepath+'/input/tri_cell_mesh.xdmf',
+                            'mesh_boundary': basepath+'/input/tri_facet_mesh.xdmf',
+                            # 'results_to_write'      : [['displacement','velocity'], [['fluiddisplacement','velocity','pressure'],['aledisplacement','alevelocity']]],
+                            # 'results_to_write'      : [[], [['velocity','pressure'],['aledisplacement']]],
+                            'results_to_write'      : [[], [[],[]]],
                             'domain_ids_solid'      : [1], 
                             'domain_ids_fluid'      : [2],
-                            'surface_ids_interface' : [1],
+                            # 'surface_ids_interface' : [1],
+                            'surface_ids_interface' : [11],
+                            # 'gridname_domain': "Grid", # To work with my triangle mesh
+                            # 'gridname_boundary': "Facet tags", # To work with my triangle mesh
+                            # 'mesh_dim': 2,
+                            # 'meshfile_format': 'XDMF',
+                            # 'meshfile_type': 'ASCII',
                             'simname'               : 'fsi_channel_flag_turek_'+case}
 
     """
@@ -137,7 +148,8 @@ def main():
     """
     FSI coupling parameters
     """
-    COUPLING_PARAMS      = {'coupling_fluid_ale'    : [{'surface_ids' : [1], 'type' : 'strong_dirichlet'}],
+    # COUPLING_PARAMS      = {'coupling_fluid_ale'    : [{'surface_ids' : [1], 'type' : 'strong_dirichlet'}],
+    COUPLING_PARAMS      = {'coupling_fluid_ale'    : [{'surface_ids' : [11], 'type' : 'strong_dirichlet'}],
                             'fsi_governing_type'    : 'solid_governed', # solid_governed, fluid_governed
                             'zero_lm_boundary'      : False} # TODO: Seems to select the wrong dofs on LM mesh! Do not turn on!
 
@@ -152,7 +164,8 @@ def main():
     
     # nonlinear material for domain motion problem: This has proved superior to the linear elastic model for large mesh deformations
     # MATERIALS_ALE        = {'MAT1' : {'exponential' : {'a_0' : 1.0, 'b_0' : 10.0, 'kappa' : 1e2}}}
-    MATERIALS_ALE        = {'MAT1' : {'weak_form_don' : {"model_path": basepath+"/input/models/wfambit002/model"}}}
+    # MATERIALS_ALE        = {'MAT1' : {'weak_form_don' : {"model_path": basepath+"/input/models/wfambit002/model"}}}
+    MATERIALS_ALE        = {'MAT1' : {'weak_form_don' : {"model_path": basepath+"/input/models/wf003fmcg1/model"}}}
 
 
     """
@@ -182,45 +195,37 @@ def main():
     """
     Boundary conditions
     """
-    BC_DICT_SOLID        = { 'dirichlet' : [{'id' : [6], 'dir' : 'all', 'val' : 0.}] }
+    # BC_DICT_SOLID        = { 'dirichlet' : [{'id' : [6], 'dir' : 'all', 'val' : 0.}] }
+    BC_DICT_SOLID        = { 'dirichlet' : [{'id' : [25], 'dir' : 'all', 'val' : 0.}] }
 
-    BC_DICT_FLUID        = { 'dirichlet' : [{'id' : [4], 'dir' : 'all', 'expression' : expression1},
-                                            {'id' : [2,3], 'dir' : 'all', 'val' : 0.}] }
+    # BC_DICT_FLUID        = { 'dirichlet' : [{'id' : [4], 'dir' : 'all', 'expression' : expression1},
+    #                                         {'id' : [2,3], 'dir' : 'all', 'val' : 0.}] }
+    BC_DICT_FLUID        = { 'dirichlet' : [{'id' : [22], 'dir' : 'all', 'expression' : expression1},
+                                            {'id' : [21,24], 'dir' : 'all', 'val' : 0.}] }
 
-    BC_DICT_ALE          = { 'dirichlet' : [{'id' : [2,3,4,5], 'dir' : 'all', 'val' : 0.}] }
+    # BC_DICT_ALE          = { 'dirichlet' : [{'id' : [2,3,4,5], 'dir' : 'all', 'val' : 0.}] }
+    BC_DICT_ALE          = { 'dirichlet' : [{'id' : [21,22,23,24], 'dir' : 'all', 'val' : 0.}] }
+
 
 
     # Pass parameters to Ambit to set up the problem
     problem = ambit_fe.ambit_main.Ambit(IO_PARAMS, [TIME_PARAMS_SOLID, TIME_PARAMS_FLUID], SOLVER_PARAMS, [FEM_PARAMS_SOLID, FEM_PARAMS_FLUID, FEM_PARAMS_ALE], [MATERIALS_SOLID, MATERIALS_FLUID, MATERIALS_ALE], [BC_DICT_SOLID, BC_DICT_FLUID, BC_DICT_ALE], coupling_params=COUPLING_PARAMS)
 
-    from output_hooks import DragHook, LiftHook, DragCornerHook, DetFCornerHook
+    from tools.output_hooks import DragHook, LiftHook, DragCornerHook, minimumDetFHook, minimizerDetFHook
 
     qoi_base_path = IO_PARAMS["output_path"]+'/results_'+IO_PARAMS["simname"]+f'_r{restart_step}'*(restart_step>0)
     problem.mp.output_hooks = [
-        DragHook(problem.mp, mu_f, qoi_base_path+'_drag.txt', interface_tag=1, obstacle_tag=2),
-        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift.txt', interface_tag=1, obstacle_tag=2),
+        DragHook(problem.mp, mu_f, qoi_base_path+'_drag.txt', interface_tag=11, obstacle_tag=21),
+        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift.txt', interface_tag=11, obstacle_tag=21),
         DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner.txt'),
-        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner.txt'),
-        DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q0.txt', interface_tag=1, obstacle_tag=2, quad_degree=0),
-        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q0.txt', interface_tag=1, obstacle_tag=2, quad_degree=0),
-        DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q0.txt', quad_degree=0),
-        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner_q0.txt', quad_degree=0),
-        DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q1.txt', interface_tag=1, obstacle_tag=2, quad_degree=1),
-        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q1.txt', interface_tag=1, obstacle_tag=2, quad_degree=1),
-        DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q1.txt', quad_degree=1),
-        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner_q1.txt', quad_degree=1),
-        DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q2.txt', interface_tag=1, obstacle_tag=2, quad_degree=2),
-        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q2.txt', interface_tag=1, obstacle_tag=2, quad_degree=2),
-        DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q2.txt', quad_degree=2),
-        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner_q2.txt', quad_degree=2),
-        DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q3.txt', interface_tag=1, obstacle_tag=2, quad_degree=3),
-        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q3.txt', interface_tag=1, obstacle_tag=2, quad_degree=3),
-        DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q3.txt', quad_degree=3),
-        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner_q3.txt', quad_degree=3),
-        DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q4.txt', interface_tag=1, obstacle_tag=2, quad_degree=4),
-        LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q4.txt', interface_tag=1, obstacle_tag=2, quad_degree=4),
-        DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q4.txt', quad_degree=4),
-        DetFCornerHook(problem.mp, mu_f, qoi_base_path+'_detf_corner_q4.txt', quad_degree=4),
+        minimumDetFHook(problem.mp, qoi_base_path+'_minimumDetF.txt'),
+        minimizerDetFHook(problem.mp, qoi_base_path+'_minimizerDetF.txt'),
+        # DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q1.txt', interface_tag=11, obstacle_tag=21, quad_degree=1),
+        # LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q1.txt', interface_tag=11, obstacle_tag=21, quad_degree=1),
+        # DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q1.txt', quad_degree=1),
+        # DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q3.txt', interface_tag=11, obstacle_tag=21, quad_degree=3),
+        # LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q3.txt', interface_tag=11, obstacle_tag=21, quad_degree=3),
+        # DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q3.txt', quad_degree=3),
     ]
 
 
@@ -229,7 +234,7 @@ def main():
 
     import dolfinx as dfx
     from mpi4py.MPI import COMM_WORLD
-    dfx.common.list_timings(COMM_WORLD, [dfx.common.TimingType.wall])
+    dfx.common.list_timings(COMM_WORLD, [dfx.common.TimingType.wall], reduction=dfx.common.Reduction.max)
 
 
 if __name__ == "__main__":
