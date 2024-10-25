@@ -136,8 +136,8 @@ def add_my_hook(model_path: PathLike, V_d: fem.FunctionSpace, T: fem.FunctionSpa
         return jnp.einsum("pi,p->i", correction_basis, branch_output)
 
 
-    def insert_correction(correction: np.ndarray, x: PETSc.Vec) -> None:
-        x.array[:] -= correction # In residual form the correction has negative sign.
+    def insert_correction(correction: np.ndarray, r: PETSc.Vec) -> None:
+        r.array[:] -= correction # In residual form the correction has negative sign.
         return
     
 
@@ -330,10 +330,9 @@ def add_my_hook_parallel(model_path: PathLike, V_d: fem.FunctionSpace, T: fem.Fu
         return jnp.einsum("pi,p->i", correction_basis, branch_output)
 
     @dfx.common.timed("insert_correction")
-    def insert_correction(correction: np.ndarray, x: PETSc.Vec) -> None:
+    def insert_correction(correction: np.ndarray, r: PETSc.Vec) -> None:
 
-        # print(f"{x.comm.rank = }, {correction.shape = }, {x.local_size = }")
-        x.array[:] -= correction # In residual form the correction has negative sign.
+        r.array[:] -= correction # In residual form the correction has negative sign.
         return
     
 
