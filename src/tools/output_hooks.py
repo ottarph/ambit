@@ -59,7 +59,7 @@ class DragHook:
 
         return
 
-    def __call__(self, fsi_problem: FSIProblem, N: int, t: float):
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
 
         u = fsi_problem.pbfa.pba.d
         v = fsi_problem.pbfa.pbf.v
@@ -124,7 +124,7 @@ class LiftHook:
 
         return
 
-    def __call__(self, fsi_problem: FSIProblem, N: int, t: float):
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
 
         local_lift = dfx.fem.assemble_scalar(self.form)
 
@@ -136,7 +136,7 @@ class LiftHook:
 
         return
     
-class minimumDetFHook:
+class MinimumDetFHook:
     def __init__(self, fsi_problem: FSIProblem, save_path: PathLike):
 
         from tools.quadtriopt_minimum import minimum_quadratic_over_triangle
@@ -163,8 +163,8 @@ class minimumDetFHook:
 
         return
     
-    @dfx.common.timed("minimumDetFHook")
-    def __call__(self, fsi_problem: FSIProblem, N: int, t: float):
+    @dfx.common.timed("MinimumDetFHook")
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
 
         self.j.interpolate(self.j_expr)
 
@@ -180,7 +180,7 @@ class minimumDetFHook:
 
         return
     
-class minimizerDetFHook:
+class MinimizerDetFHook:
     def __init__(self, fsi_problem: FSIProblem, save_path: PathLike):
 
         from tools.quadtriopt_minimizer import minimizer_quadratic_over_triangle
@@ -216,8 +216,8 @@ class minimizerDetFHook:
 
         return
     
-    @dfx.common.timed("minimizerDetFHook")
-    def __call__(self, fsi_problem: FSIProblem, N: int, t: float):
+    @dfx.common.timed("MinimizerDetFHook")
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
 
         self.j.interpolate(self.j_expr)
 
@@ -239,6 +239,137 @@ class minimizerDetFHook:
             with open(self.save_path, "a") as f:
                 f.write(f"{t},{global_min_j},{global_min_x},{global_min_y}\n")
 
+        return
+    
+from tools.mesh_quality import scaled_jacobian_cellwise_impl, get_orientation_cellwise
+
+class ScaledJacobianHook:
+
+    def __init__(self, fsi_problem: FSIProblem, save_path: PathLike):
+
+        self.save_path = save_path
+
+        msh = fsi_problem.iof.mesh
+        self.comm = msh.comm
+
+        assert msh.topology.cell_name() == "triangle"
+        vertex_slots = {"triangle": 3, "quadrilateral": 4}[msh.topology.cell_name()]
+
+        self.u = fsi_problem.pbfa.pba.d
+        V = self.u.function_space
+
+        DG0 = dfx.fem.FunctionSpace(msh, ("DG", 0))
+        
+
+        self.num_local_cells = DG0.dofmap.index_map.size_local
+
+        unique_offset_diffs = np.unique(np.diff(V.dofmap.list.offsets))
+        assert len(unique_offset_diffs) == 1
+
+        dmlist = V.dofmap.list.array.reshape(-1, unique_offset_diffs[0])
+        
+        self.local_cells = dmlist[:self.num_local_cells,:vertex_slots]
+        self.local_x = V.tabulate_dof_coordinates()[self.local_cells.flatten(),:2].reshape(-1, vertex_slots, 2)
+
+        self.local_orientation = get_orientation_cellwise(self.local_x)
+
+        self.uh = np.zeros_like(self.local_x)
+
+        del DG0
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "w") as f:
+                f.write("time,scaled jacobian [cells]\n")
+
+        return
+    
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
+        
+        self.uh[:,:,0] = self.u.x.array[2*self.local_cells.flatten()+0].reshape(self.num_local_cells, -1)
+        self.uh[:,:,1] = self.u.x.array[2*self.local_cells.flatten()+1].reshape(self.num_local_cells, -1)
+
+        local_sj = scaled_jacobian_cellwise_impl(self.local_x + self.uh, self.local_orientation)
+        global_sj = self.comm.gather(local_sj)
+
+        if self.comm.rank == 0:
+            out_arr = np.concatenate(([[t]]+global_sj).reshape(-1,1))
+            with open(self.save_path, "ab") as f:
+                np.savetxt(f, out_arr, fmt="%.6f", delimiter=",")
+
+        return
+    
+class MinScaledJacobianHook:
+
+    def __init__(self, fsi_problem: FSIProblem, save_path: PathLike, include_internal_counter: bool = False,
+                 write_time: bool = True):
+
+        self.save_path = save_path
+
+        msh = fsi_problem.iof.mesh
+        self.comm = msh.comm
+
+        assert msh.topology.cell_name() == "triangle"
+        vertex_slots = {"triangle": 3, "quadrilateral": 4}[msh.topology.cell_name()]
+
+        self.u = fsi_problem.pbfa.pba.d
+        V = self.u.function_space
+
+        DG0 = dfx.fem.FunctionSpace(msh, ("DG", 0))
+        
+
+        self.num_local_cells = DG0.dofmap.index_map.size_local
+
+        unique_offset_diffs = np.unique(np.diff(V.dofmap.list.offsets))
+        assert len(unique_offset_diffs) == 1
+
+        dmlist = V.dofmap.list.array.reshape(-1, unique_offset_diffs[0])
+        
+        self.local_cells = dmlist[:self.num_local_cells,:vertex_slots]
+        self.local_x = V.tabulate_dof_coordinates()[self.local_cells.flatten(),:2].reshape(-1, vertex_slots, 2)
+
+        self.local_orientation = get_orientation_cellwise(self.local_x)
+
+        self.uh = np.zeros_like(self.local_x)
+
+        del DG0
+
+        self.write_time = write_time
+        self.include_internal_counter = include_internal_counter
+
+        self.counter = -1
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "w") as f:
+                f.write("time,"*write_time + "solver iteration,"*include_internal_counter + "min scaled jacobian\n")
+
+        return
+    
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
+        
+        self.uh[:,:,0] = self.u.x.array[2*self.local_cells.flatten()+0].reshape(self.num_local_cells, -1)
+        self.uh[:,:,1] = self.u.x.array[2*self.local_cells.flatten()+1].reshape(self.num_local_cells, -1)
+
+        local_sj = scaled_jacobian_cellwise_impl(self.local_x + self.uh, self.local_orientation)
+        local_min_sj = np.min(local_sj)
+        global_min_sj = self.comm.reduce(local_min_sj, op=MPI.MIN, root=0)
+
+        self.counter += 1
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "a") as f:
+                f.write(f"{t},"*self.write_time+f"{self.counter},"*self.include_internal_counter+f"{global_min_sj}\n")
+
+        return
+    
+class ResetCounter:
+
+    def __init__(self, hook, reset_value: int = -1):
+        self.hook = hook
+        self.reset_value = reset_value
+        return
+
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
+        self.hook.counter = self.reset_value
         return
 
 class DragCornerHook:
@@ -293,7 +424,7 @@ class DragCornerHook:
 
         return
 
-    def __call__(self, fsi_problem: FSIProblem, N: int, t: float):
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
 
         u = fsi_problem.pbfa.pba.d
         v = fsi_problem.pbfa.pbf.v
@@ -352,7 +483,7 @@ class DetFCornerHook:
 
         return
 
-    def __call__(self, fsi_problem: FSIProblem, N: int, t: float):
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
 
         u = fsi_problem.pbfa.pba.d
         v = fsi_problem.pbfa.pbf.v

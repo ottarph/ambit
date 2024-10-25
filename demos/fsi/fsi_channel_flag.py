@@ -18,7 +18,7 @@ def main():
     try: import sys; restart_step = int(sys.argv[1])
     except: restart_step = 0
 
-    restart_step = 3500
+    restart_step = 3000
     
     case = 'FSI2' # 'FSI2', 'FSI3'
 
@@ -35,7 +35,7 @@ def main():
         Ubar = 1e3 # mm/s
         # max simulation time until periodic
         maxtime = 15.0
-        # maxtime = 14.0
+        maxtime = 14.0
         dt_ref = 0.0005
         dt_large = 0.004
     elif case=='FSI3':
@@ -71,7 +71,7 @@ def main():
                             'write_restart_every'   : 0,
                             'restart_step'          : restart_step,
                             # where to write the output to
-                            'output_path'           : basepath+'/tmp_tri/16proc',
+                            'output_path'           : basepath+'/tmp_tri/16proc_mqtest',
                             # 'output_path'           : basepath+'/tmp_exp',
                             # 'mesh_domain'           : basepath+'/input/channel-flag_domain.xdmf',
                             # 'mesh_boundary'         : basepath+'/input/channel-flag_boundary.xdmf',
@@ -211,15 +211,14 @@ def main():
     # Pass parameters to Ambit to set up the problem
     problem = ambit_fe.ambit_main.Ambit(IO_PARAMS, [TIME_PARAMS_SOLID, TIME_PARAMS_FLUID], SOLVER_PARAMS, [FEM_PARAMS_SOLID, FEM_PARAMS_FLUID, FEM_PARAMS_ALE], [MATERIALS_SOLID, MATERIALS_FLUID, MATERIALS_ALE], [BC_DICT_SOLID, BC_DICT_FLUID, BC_DICT_ALE], coupling_params=COUPLING_PARAMS)
 
-    from tools.output_hooks import DragHook, LiftHook, DragCornerHook, minimumDetFHook, minimizerDetFHook
+    from tools.output_hooks import DragHook, LiftHook, DragCornerHook, MinimumDetFHook, MinimizerDetFHook, ScaledJacobianHook
 
     qoi_base_path = IO_PARAMS["output_path"]+'/results_'+IO_PARAMS["simname"]+f'_r{restart_step}'*(restart_step>0)
     problem.mp.output_hooks = [
         DragHook(problem.mp, mu_f, qoi_base_path+'_drag.txt', interface_tag=11, obstacle_tag=21),
         LiftHook(problem.mp, mu_f, qoi_base_path+'_lift.txt', interface_tag=11, obstacle_tag=21),
         DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner.txt'),
-        minimumDetFHook(problem.mp, qoi_base_path+'_minimumDetF.txt'),
-        minimizerDetFHook(problem.mp, qoi_base_path+'_minimizerDetF.txt'),
+        MinimizerDetFHook(problem.mp, qoi_base_path+'_minimizerDetF.txt'),
         # DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q1.txt', interface_tag=11, obstacle_tag=21, quad_degree=1),
         # LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q1.txt', interface_tag=11, obstacle_tag=21, quad_degree=1),
         # DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q1.txt', quad_degree=1),
@@ -228,6 +227,11 @@ def main():
         # DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q3.txt', quad_degree=3),
     ]
 
+    from tools.output_hooks import MinScaledJacobianHook, ResetCounter
+    problem.mp.pbfa.pba.residual_assembly_hooks.append(MinScaledJacobianHook(problem.mp, qoi_base_path+'_newton_iter_min_scaled_jacobian.txt',
+                                    include_internal_counter=True, write_time=False))
+
+    problem.mp.output_hooks.append(ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-1]))
 
     # Call the Ambit solver to solve the problem
     problem.solve_problem()

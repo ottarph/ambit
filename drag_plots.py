@@ -8,7 +8,7 @@ results_base = "demos/fsi/tmp_tri/16proc/results_fsi_channel_flag_turek_FSI2_"
 results_base = "demos/fsi/tmp_tri/16proc/results_fsi_channel_flag_turek_FSI2_r3500_"
 results_post = ".txt"
 
-ADD_REF = True
+ADD_REF = False
 TIME_CROP = False
 REFERENCE_SLICE = 1
 if ADD_REF:
@@ -16,17 +16,17 @@ if ADD_REF:
     REF_STYLE = "k-"
 else:
     DON_STYLE = "k-"
-crop_a, crob_b = 12.0, 14.0
+crop_a, crob_b = 10.0, 10.2
 
+print(results_base+"drag"+results_post)
 
 time = np.loadtxt(results_base+"drag"+results_post, skiprows=1, delimiter=',')[:,0]
 drag = np.loadtxt(results_base+"drag"+results_post, skiprows=1, delimiter=',')[:,1]
 lift = np.loadtxt(results_base+"lift"+results_post, skiprows=1, delimiter=',')[:,1] * -1
 dragcr = np.loadtxt(results_base+"drag_corner"+results_post, skiprows=1, delimiter=',')[:,1]
-minimumJ = np.loadtxt(results_base+"minimumDetF"+results_post, skiprows=1, delimiter=',')[:,1]
-minimizerJ_val = np.loadtxt(results_base+"minimizerDetF"+results_post, skiprows=1, delimiter=',')[:,1]
-minimizerJ_x = np.loadtxt(results_base+"minimizerDetF"+results_post, skiprows=1, delimiter=',')[:,2]
-minimizerJ_y = np.loadtxt(results_base+"minimizerDetF"+results_post, skiprows=1, delimiter=',')[:,3]
+# minimizerJ_val = np.loadtxt(results_base+"minimizerDetF"+results_post, skiprows=1, delimiter=',')[:,1]
+# minimizerJ_x = np.loadtxt(results_base+"minimizerDetF"+results_post, skiprows=1, delimiter=',')[:,2]
+# minimizerJ_y = np.loadtxt(results_base+"minimizerDetF"+results_post, skiprows=1, delimiter=',')[:,3]
 
 if TIME_CROP:
     eps = 1e-6
@@ -36,6 +36,9 @@ if TIME_CROP:
     drag = drag[inds]
     lift = lift[inds]
     dragcr = dragcr[inds]
+    # minimizerJ_val = minimizerJ_val[inds]
+    # minimizerJ_x = minimizerJ_x[inds]
+    # minimizerJ_y = minimizerJ_y[inds]
 
 
 if ADD_REF:
@@ -101,18 +104,18 @@ plt.title(f"quad_deg = {results_post[2]}" if len(results_post) > 4 else None)
 plt.savefig("dragcr.pdf")
 
 
-plt.figure()
+# plt.figure()
 
-plt.plot(time, minimizerJ_val, 'k-')
+# plt.plot(time, minimizerJ_val, 'k-')
 
-plt.xlabel("time")
-plt.ylabel(r"$\mathrm{min}_x \; \mathrm{det} \; F(u(t,x))$")
-plt.xlim(time.min(), time.max())
+# plt.xlabel("time")
+# plt.ylabel(r"$\mathrm{min}_x \; \mathrm{det} \; F(u(t,x))$")
+# plt.xlim(time.min(), time.max())
 
-plt.savefig("minimumJ.pdf")
+# plt.savefig("minimumJ.pdf")
 
-min_ind = np.argmin(minimizerJ_val)
-min_x = minimizerJ_x[min_ind]
-min_y = minimizerJ_y[min_ind]
-print(f"{min_x = }")
-print(f"{min_y = }")
+# min_ind = np.argmin(minimizerJ_val)
+# min_x = minimizerJ_x[min_ind]
+# min_y = minimizerJ_y[min_ind]
+# print(f"{min_x = }")
+# print(f"{min_y = }")
