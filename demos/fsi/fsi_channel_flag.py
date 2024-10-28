@@ -227,11 +227,23 @@ def main():
         # DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q3.txt', quad_degree=3),
     ]
 
-    from tools.output_hooks import MinScaledJacobianHook, ResetCounter
-    problem.mp.pbfa.pba.residual_assembly_hooks.append(MinScaledJacobianHook(problem.mp, qoi_base_path+'_newton_iter_min_scaled_jacobian.txt',
-                                    include_internal_counter=True, write_time=False))
+    from tools.output_hooks import MinScaledJacobianHook, ResetCounter, MatrixBlockNorm
+    problem.mp.pbfa.pba.residual_assembly_hooks.extend([
+        MinScaledJacobianHook(problem.mp, qoi_base_path+'_newton_iter_min_scaled_jacobian.txt',
+                                    include_internal_counter=True, write_time=False),
+        MatrixBlockNorm(problem.mp, problem.ms, qoi_base_path+'_newton_iter_blocknorms.txt', 
+                        ((0,0),               (0,3), 
+                                (1,1), (1,2), (1,3), (1,4), 
+                                (2,1),               (2,4), # (2,2) is nonzero only when using stabilization for pressure
+                         (3,0), (3,1),
+                                (4,1),               (4,4)),
+                        write_time=False, include_internal_counter=True)
+        ])
 
-    problem.mp.output_hooks.append(ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-1]))
+    problem.mp.output_hooks.extend([
+        ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-1]),
+        ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-2]),
+    ])
 
     # Call the Ambit solver to solve the problem
     problem.solve_problem()

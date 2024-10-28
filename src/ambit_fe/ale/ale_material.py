@@ -41,7 +41,7 @@ class materiallaw:
         # AleProblem.assemble_residual()-method.
 
         # We ignore the DeepONet's contribution to the jacobian, as it is
-        # dense and a quasi-Newton method is probably more efficient,
+        # dense and an approximated / incomplete Jacobian Newton method is probably more efficient,
         # and certainly easier to implement.
         return ufl.grad(self.d)
     # ENDING: OTTAR HELLAN, 2024.10.07

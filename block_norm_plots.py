@@ -7,9 +7,19 @@ results_base = "demos/fsi/tmp_1proc/results_fsi_channel_flag_turek_FSI2_"
 results_base = "demos/fsi/tmp_tri/16proc_mqtest/results_fsi_channel_flag_turek_FSI2_r3000_"
 results_post = ".txt"
 
+
+
+
 time = np.concatenate(([12.0], np.loadtxt(results_base+"drag"+results_post, skiprows=1, delimiter=',')[:,0]))
 newton_iters = np.loadtxt(results_base+"newton_iter_min_scaled_jacobian.txt", skiprows=1, delimiter=',')[:,0]
 min_sj = np.loadtxt(results_base+"newton_iter_min_scaled_jacobian.txt", skiprows=1, delimiter=',')[:,1]
+block_norms_arr = np.loadtxt(results_base+"newton_iter_blocknorms.txt", skiprows=1, delimiter=',')[:,1:]
+
+blocks =                ((0,0),               (0,3), 
+                                (1,1), (1,2), (1,3), (1,4), 
+                                (2,1),               (2,4), # (2,2) is nonzero only when using stabilization for pressure
+                         (3,0), (3,1),
+                                (4,1),               (4,4))
 
 
 newton_iters_t = np.zeros_like(newton_iters)
@@ -34,25 +44,22 @@ newton_iters_t = newton_iters_t[crop]
 min_sj = min_sj[crop]
 new_steps = np.flatnonzero(np.logical_and(newton_iters == 0, newton_iters_t <= max_T))
 
-plt.figure()
+block_norms_arr = block_norms_arr[crop,:]
 
-plt.plot(np.arange(newton_iters.shape[0]), min_sj, "k-", label="min scaled Jacobian")
+block_norms = [[None for _ in range(5)] for __ in range(5)]
+for e, (i,j) in enumerate(blocks):
+    block_norms[i][j] = block_norms_arr[:,e]
 
-plt.xlabel("Nonlinear iterations")
-plt.ylabel("minimum scaled Jacobian")
-plt.xlim(0, newton_iters.shape[0])
+for e, (i,j) in enumerate(blocks):
+    assert block_norms[i][j].shape == block_norms_arr[:,e].shape
 
-plt.savefig("newton_mq.pdf")
+A = np.zeros((5,5))
+for e, (i,j) in enumerate(blocks):
+    A[i,j] = np.mean(block_norms_arr[:,e])
 
-
-plt.figure()
-
-plt.plot(newton_iters_t, min_sj, "k:", label="min scaled Jacobian")
-plt.plot(newton_iters_t[new_steps], min_sj[new_steps], 'ro', ms=1, alpha=0.5)
-
-plt.xlabel("time (newton iterations fractional)")
-plt.ylabel("minimum scaled Jacobian")
-plt.xlim(newton_iters_t.min(), newton_iters_t.max())
-
-plt.savefig("newton_mq_t.pdf")
+from matplotlib import colors as mcolors
+norm = mcolors.LogNorm()
+im = plt.imshow(A, norm=norm)
+plt.colorbar(im)
+plt.savefig("mean_blocknorm_logscale.pdf")
 

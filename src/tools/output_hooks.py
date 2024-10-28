@@ -361,6 +361,45 @@ class MinScaledJacobianHook:
 
         return
     
+class MatrixBlockNorm:
+
+    def __init__(self, fsi_problem: FSIProblem, save_path: PathLike, block_indices: tuple[tuple[int, int]] | tuple[int, int],
+                 write_time: bool, include_internal_counter: bool):
+        self.save_path = save_path
+
+        self.comm = fsi_problem.iof.mesh.comm
+
+        self.block_indices = (block_indices, ) if isinstance(block_indices[0], int) else block_indices
+
+        self.K_list = fsi_problem.K_list
+        
+        self.write_time = write_time
+        self.include_internal_counter = include_internal_counter
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "w") as f:
+                f.write("time,"*write_time+"solver iteration,"*include_internal_counter+
+                        ",".join((f"block{i}{j}" for (i,j) in self.block_indices))+"\n")
+
+        return
+    
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
+
+        norms = []
+        for i, j in self.block_indices:
+            Jij = self.K_list[i][j]
+            J_ij_norm = Jij.norm()
+            norms.append(J_ij_norm)
+
+        self.counter += 1
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "a") as f:
+                f.write(f"{t},"*self.write_time+f"{self.counter},"*self.include_internal_counter+
+                        ",".join(map(str, norms))+"\n")
+
+        return
+    
 class ResetCounter:
 
     def __init__(self, hook, reset_value: int = -1):
