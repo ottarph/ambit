@@ -8,7 +8,7 @@ import numpy as np
 
 from os import PathLike
 
-from ambit_fe.coupling.fsi_main import FSIProblem
+from ambit_fe.coupling.fsi_main import FSIProblem, FSISolver
 
 class DragHook:
 
@@ -61,12 +61,7 @@ class DragHook:
 
     def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
 
-        u = fsi_problem.pbfa.pba.d
-        v = fsi_problem.pbfa.pbf.v
-        p = fsi_problem.pbfa.pbf.p
-
         local_drag = dfx.fem.assemble_scalar(self.form)
-
         global_drag = self.comm.reduce(local_drag, op=MPI.SUM, root=0)
 
         if self.comm.rank == 0:
@@ -127,7 +122,6 @@ class LiftHook:
     def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
 
         local_lift = dfx.fem.assemble_scalar(self.form)
-
         global_lift = self.comm.reduce(local_lift, op=MPI.SUM, root=0)
 
         if self.comm.rank == 0:
@@ -375,6 +369,7 @@ class MatrixBlockNorm:
         
         self.write_time = write_time
         self.include_internal_counter = include_internal_counter
+        self.counter = -1
 
         if self.comm.rank == 0:
             with open(self.save_path, "w") as f:
@@ -397,6 +392,134 @@ class MatrixBlockNorm:
             with open(self.save_path, "a") as f:
                 f.write(f"{t},"*self.write_time+f"{self.counter},"*self.include_internal_counter+
                         ",".join(map(str, norms))+"\n")
+
+        return
+
+class MatrixBlockNormInterfaceALESerial:
+
+    def __init__(self, fsi_problem: FSIProblem, fsi_solver: FSISolver, save_path: PathLike, 
+                 block_indices: tuple[tuple[int, int]] | tuple[int, int], interface_tag: int,
+                 write_time: bool, include_internal_counter: bool):
+        self.save_path = save_path
+
+        self.comm = fsi_problem.iof.mesh.comm
+        assert self.comm.size == 1
+
+        self.block_indices = (block_indices, ) if isinstance(block_indices[0], int) else block_indices
+        assert all(all(0 <= k <= 5 for k in tup) for tup in block_indices)
+        
+        self.ALE_fspace = fsi_problem.pbfa.pba.d.function_space
+        V = self.ALE_fspace
+        block_size = V.dofmap.index_map_bs
+
+        fluid_meshtags = fsi_problem.io.mt_b1_fluid
+        
+        
+        scal_ALE_int_dofs = dfx.fem.locate_dofs_topological(self.ALE_fspace, 1, fluid_meshtags.find(interface_tag))
+        scal_ALE_bulk_dofs = np.setdiff1d(np.arange(self.ALE_fspace.dofmap.index_map.size_local, dtype=np.int32), scal_ALE_int_dofs)
+
+        
+        vec_ALE_int_dofs = np.repeat(scal_ALE_int_dofs, block_size) * block_size + \
+                np.tile(np.arange(block_size, dtype=np.int32), len(scal_ALE_int_dofs))
+        vec_ALE_bulk_dofs = np.repeat(scal_ALE_bulk_dofs, block_size) * block_size + \
+                np.tile(np.arange(block_size, dtype=np.int32), len(scal_ALE_bulk_dofs))
+        
+
+        IS_ALE_int = PETSc.IS().createGeneral(vec_ALE_int_dofs, comm=self.comm)
+        IS_ALE_bulk = PETSc.IS().createGeneral(vec_ALE_bulk_dofs, comm=self.comm)
+
+        IS_ALE_int.sort()
+        IS_ALE_bulk.sort()
+
+        
+        self.fp_K_list = fsi_problem.K_list
+        self.K_list = [[None for _ in range(6)] for __ in range(6)]
+
+        for k in range(5):
+            for l in range(5):
+                if self.fp_K_list[k][l] is not None:
+                    print(f"{k},{l}", self.fp_K_list[k][l].getSize())
+
+        # Block entries 0-3 x 0-3 are unchanged
+        for i in range(4):
+            for j in range(4):
+                self.K_list[i][j] = self.fp_K_list[i][j]
+
+        # Block entries 0-3 x (4,5) are computed
+        j = 4
+        for i in range(4):
+            if not (i,j) in block_indices:
+                continue
+            
+            Kij = self.fp_K_list[i][j]
+
+            Ki_int = Kij.createSubMatrix(Kij.getOwnershipIS()[0], IS_ALE_int)
+            Ki_bulk = Kij.createSubMatrix(Kij.getOwnershipIS()[0], IS_ALE_bulk)
+            Ki_int.assemble()
+            Ki_bulk.assemble()
+            self.K_list[i][j] = Ki_int
+            self.K_list[i][j+1] = Ki_bulk
+
+        
+        # Block entries (4,5) x 0-3 are computed
+        i = 4
+        for j in range(4):
+            if not (i,j) in block_indices:
+                continue
+
+            Kij = self.fp_K_list[i][j]
+
+            Ki_int = Kij.createSubMatrix(IS_ALE_int, None)
+            Ki_bulk = Kij.createSubMatrix(IS_ALE_bulk, None)
+            Ki_int.assemble()
+            Ki_bulk.assemble()
+            self.K_list[i][j] = Ki_int
+            self.K_list[i+1][j] = Ki_bulk
+
+
+        # Block entries (4,5) x (4,5) are computed
+        i, j = 4, 4
+        K = self.fp_K_list[i][j]
+        K_int_int = K.createSubMatrix(IS_ALE_int, IS_ALE_int)
+        K_int_bulk = K.createSubMatrix(IS_ALE_int, IS_ALE_bulk)
+        K_bulk_int = K.createSubMatrix(IS_ALE_bulk, IS_ALE_int)
+        K_bulk_bulk = K.createSubMatrix(IS_ALE_bulk, IS_ALE_bulk)
+        self.K_list[  i][  j] = K_int_int
+        self.K_list[  i][j+1] = K_int_bulk
+        self.K_list[i+1][  j] = K_bulk_int
+        self.K_list[i+1][j+1] = K_bulk_bulk
+
+        K_int_int.assemble()
+        K_int_bulk.assemble()
+        K_bulk_int.assemble()
+        K_bulk_bulk.assemble()
+        
+        
+        self.write_time = write_time
+        self.include_internal_counter = include_internal_counter
+        self.counter = -1
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "w") as f:
+                f.write("time,"*write_time+"solver iteration,"*include_internal_counter+
+                        ",".join((f"block{i}{j}" for (i,j) in self.block_indices))+"\n")
+
+        return
+    
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
+
+        norms = []
+        for i, j in self.block_indices:
+            Jij = self.K_list[i][j]
+            J_ij_norm = Jij.norm()
+            norms.append(J_ij_norm)
+
+        self.counter += 1
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "ab") as f:
+                line = np.array(([t] if self.write_time else []) + ([self.counter] if self.include_internal_counter else []) + norms)
+                np.savetxt(f, line.reshape(1,-1), delimiter=",", fmt="%.6e")
 
         return
     

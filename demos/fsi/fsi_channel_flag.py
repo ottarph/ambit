@@ -35,7 +35,7 @@ def main():
         Ubar = 1e3 # mm/s
         # max simulation time until periodic
         maxtime = 15.0
-        maxtime = 14.0
+        maxtime = 12.05
         dt_ref = 0.0005
         dt_large = 0.004
     elif case=='FSI3':
@@ -71,7 +71,7 @@ def main():
                             'write_restart_every'   : 0,
                             'restart_step'          : restart_step,
                             # where to write the output to
-                            'output_path'           : basepath+'/tmp_tri/16proc_mqtest',
+                            'output_path'           : basepath+'/tmp_tri/1proc',
                             # 'output_path'           : basepath+'/tmp_exp',
                             # 'mesh_domain'           : basepath+'/input/channel-flag_domain.xdmf',
                             # 'mesh_boundary'         : basepath+'/input/channel-flag_boundary.xdmf',
@@ -227,22 +227,33 @@ def main():
         # DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q3.txt', quad_degree=3),
     ]
 
-    from tools.output_hooks import MinScaledJacobianHook, ResetCounter, MatrixBlockNorm
+    from tools.output_hooks import MinScaledJacobianHook, ResetCounter, MatrixBlockNorm, \
+        MatrixBlockNormInterfaceALESerial
     problem.mp.pbfa.pba.residual_assembly_hooks.extend([
         MinScaledJacobianHook(problem.mp, qoi_base_path+'_newton_iter_min_scaled_jacobian.txt',
                                     include_internal_counter=True, write_time=False),
-        MatrixBlockNorm(problem.mp, problem.ms, qoi_base_path+'_newton_iter_blocknorms.txt', 
+        MatrixBlockNorm(problem.mp, qoi_base_path+'_newton_iter_blocknorms.txt', 
                         ((0,0),               (0,3), 
                                 (1,1), (1,2), (1,3), (1,4), 
                                 (2,1),               (2,4), # (2,2) is nonzero only when using stabilization for pressure
                          (3,0), (3,1),
                                 (4,1),               (4,4)),
-                        write_time=False, include_internal_counter=True)
+                        write_time=False, include_internal_counter=True),
+        MatrixBlockNormInterfaceALESerial(problem.mp, problem.ms, qoi_base_path+'_newton_iter_blocknormsALEint.txt', 
+                        ((0,0),               (0,3), 
+                                (1,1), (1,2), (1,3), (1,4), (1,5),
+                                (2,1),               (2,4), (2,5), # (2,2) is nonzero only when using stabilization for pressure
+                         (3,0), (3,1),
+                                (4,1),               (4,4), (4,5),
+                                (5,1),               (5,4), (5,5)),
+                        interface_tag=11,
+                        write_time=False, include_internal_counter=True),
         ])
 
     problem.mp.output_hooks.extend([
         ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-1]),
         ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-2]),
+        ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-3]),
     ])
 
     # Call the Ambit solver to solve the problem
