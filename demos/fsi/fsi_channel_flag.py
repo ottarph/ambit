@@ -35,7 +35,7 @@ def main():
         Ubar = 1e3 # mm/s
         # max simulation time until periodic
         maxtime = 15.0
-        maxtime = 12.05
+        maxtime = 12.1
         dt_ref = 0.0005
         dt_large = 0.004
     elif case=='FSI3':
@@ -68,15 +68,14 @@ def main():
                             'USE_OLD_DOLFINX_MIXED_BRANCH' : True,
                             # at which step frequency to write results
                             'write_results_every'   : 1,
-                            'write_restart_every'   : 0,
+                            'write_restart_every'   : 3000,
                             'restart_step'          : restart_step,
                             # where to write the output to
-                            'output_path'           : basepath+'/tmp_tri/1proc',
-                            # 'output_path'           : basepath+'/tmp_exp',
+                            'output_path'           : basepath+'/tmp_tri_coarse/1proc',
                             # 'mesh_domain'           : basepath+'/input/channel-flag_domain.xdmf',
                             # 'mesh_boundary'         : basepath+'/input/channel-flag_boundary.xdmf',
-                            'mesh_domain': basepath+'/input/tri_cell_mesh.xdmf',
-                            'mesh_boundary': basepath+'/input/tri_facet_mesh.xdmf',
+                            'mesh_domain': basepath+'/input/tri_cell_mesh_coarse.xdmf',
+                            'mesh_boundary': basepath+'/input/tri_facet_mesh_coarse.xdmf',
                             # 'results_to_write'      : [['displacement','velocity'], [['fluiddisplacement','velocity','pressure'],['aledisplacement','alevelocity']]],
                             # 'results_to_write'      : [[], [['velocity','pressure'],['aledisplacement']]],
                             'results_to_write'      : [[], [[],[]]],
@@ -84,11 +83,6 @@ def main():
                             'domain_ids_fluid'      : [2],
                             # 'surface_ids_interface' : [1],
                             'surface_ids_interface' : [11],
-                            # 'gridname_domain': "Grid", # To work with my triangle mesh
-                            # 'gridname_boundary': "Facet tags", # To work with my triangle mesh
-                            # 'mesh_dim': 2,
-                            # 'meshfile_format': 'XDMF',
-                            # 'meshfile_type': 'ASCII',
                             'simname'               : 'fsi_channel_flag_turek_'+case}
 
     """
@@ -219,16 +213,10 @@ def main():
         LiftHook(problem.mp, mu_f, qoi_base_path+'_lift.txt', interface_tag=11, obstacle_tag=21),
         DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner.txt'),
         MinimizerDetFHook(problem.mp, qoi_base_path+'_minimizerDetF.txt'),
-        # DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q1.txt', interface_tag=11, obstacle_tag=21, quad_degree=1),
-        # LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q1.txt', interface_tag=11, obstacle_tag=21, quad_degree=1),
-        # DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q1.txt', quad_degree=1),
-        # DragHook(problem.mp, mu_f, qoi_base_path+'_drag_q3.txt', interface_tag=11, obstacle_tag=21, quad_degree=3),
-        # LiftHook(problem.mp, mu_f, qoi_base_path+'_lift_q3.txt', interface_tag=11, obstacle_tag=21, quad_degree=3),
-        # DragCornerHook(problem.mp, mu_f, qoi_base_path+'_drag_corner_q3.txt', quad_degree=3),
     ]
 
     from tools.output_hooks import MinScaledJacobianHook, ResetCounter, MatrixBlockNorm, \
-        MatrixBlockNormInterfaceALESerial
+        MatrixBlockNormInterfaceALESerialScipy
     problem.mp.pbfa.pba.residual_assembly_hooks.extend([
         MinScaledJacobianHook(problem.mp, qoi_base_path+'_newton_iter_min_scaled_jacobian.txt',
                                     include_internal_counter=True, write_time=False),
@@ -239,7 +227,7 @@ def main():
                          (3,0), (3,1),
                                 (4,1),               (4,4)),
                         write_time=False, include_internal_counter=True),
-        MatrixBlockNormInterfaceALESerial(problem.mp, problem.ms, qoi_base_path+'_newton_iter_blocknormsALEint.txt', 
+        MatrixBlockNormInterfaceALESerialScipy(problem.mp, problem.ms, qoi_base_path+'_newton_iter_blocknormsALEint.txt', 
                         ((0,0),               (0,3), 
                                 (1,1), (1,2), (1,3), (1,4), (1,5),
                                 (2,1),               (2,4), (2,5), # (2,2) is nonzero only when using stabilization for pressure

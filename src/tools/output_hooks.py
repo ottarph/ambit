@@ -10,6 +10,11 @@ from os import PathLike
 
 from ambit_fe.coupling.fsi_main import FSIProblem, FSISolver
 
+
+from scipy import sparse
+def petsc2scipy(A):
+    return sparse.csr_array(A.getValuesCSR()[::-1])
+
 class DragHook:
 
     def __init__(self, fsi_problem: FSIProblem, mu: float, save_path: PathLike, interface_tag: int = 1, obstacle_tag: int = 2,
@@ -511,8 +516,88 @@ class MatrixBlockNormInterfaceALESerial:
         norms = []
         for i, j in self.block_indices:
             Jij = self.K_list[i][j]
-            J_ij_norm = Jij.norm()
+            J_ij_norm = Jij.norm(PETSc.NormType.FROBENIUS)
             norms.append(J_ij_norm)
+
+        self.counter += 1
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "ab") as f:
+                line = np.array(([t] if self.write_time else []) + ([self.counter] if self.include_internal_counter else []) + norms)
+                np.savetxt(f, line.reshape(1,-1), delimiter=",", fmt="%.6e")
+
+        return
+    
+import scipy.sparse.linalg
+class MatrixBlockNormInterfaceALESerialScipy:
+
+    def __init__(self, fsi_problem: FSIProblem, fsi_solver: FSISolver, save_path: PathLike, 
+                 block_indices: tuple[tuple[int, int]] | tuple[int, int], interface_tag: int,
+                 write_time: bool, include_internal_counter: bool):
+        self.save_path = save_path
+
+        self.comm = fsi_problem.iof.mesh.comm
+        assert self.comm.size == 1
+
+        self.block_indices = (block_indices, ) if isinstance(block_indices[0], int) else block_indices
+        assert all(all(0 <= k <= 5 for k in tup) for tup in block_indices)
+        
+        self.ALE_fspace = fsi_problem.pbfa.pba.d.function_space
+        V = self.ALE_fspace
+        block_size = V.dofmap.index_map_bs
+
+        fluid_meshtags = fsi_problem.io.mt_b1_fluid
+        
+        
+        scal_ALE_int_dofs = dfx.fem.locate_dofs_topological(self.ALE_fspace, 1, fluid_meshtags.find(interface_tag))
+        scal_ALE_bulk_dofs = np.setdiff1d(np.arange(self.ALE_fspace.dofmap.index_map.size_local, dtype=np.int32), scal_ALE_int_dofs)
+
+        
+        vec_ALE_int_dofs = np.repeat(scal_ALE_int_dofs, block_size) * block_size + \
+                np.tile(np.arange(block_size, dtype=np.int32), len(scal_ALE_int_dofs))
+        vec_ALE_bulk_dofs = np.repeat(scal_ALE_bulk_dofs, block_size) * block_size + \
+                np.tile(np.arange(block_size, dtype=np.int32), len(scal_ALE_bulk_dofs))
+
+        self.int_dofs = vec_ALE_int_dofs
+        self.bulk_dofs = vec_ALE_bulk_dofs
+        
+        self.K_mono = fsi_solver.solnln.K_full_merged[0]
+        self.std_K_nest = fsi_solver.solnln.K_full_nest[0]
+
+
+        self.std_nest_row_indices = []
+        for nest in self.std_K_nest.getNestISs()[0]:
+            self.std_nest_row_indices.append(nest.getIndices())
+
+        self.split_nest_row_indices = []
+        for i in range(4):
+            self.split_nest_row_indices.append(self.std_nest_row_indices[i] * 1)
+
+        self.split_nest_row_indices.append(self.std_nest_row_indices[-1][self.int_dofs] * 1)
+        self.split_nest_row_indices.append(self.std_nest_row_indices[-1][self.bulk_dofs] * 1)
+
+
+        self.write_time = write_time
+        self.include_internal_counter = include_internal_counter
+        self.counter = -1
+
+        if self.comm.rank == 0:
+            with open(self.save_path, "w") as f:
+                f.write("time,"*write_time+"solver iteration,"*include_internal_counter+
+                        ",".join((f"block{i}{j}" for (i,j) in self.block_indices))+"\n")
+
+        return
+    
+    def __call__(self, fsi_problem: FSIProblem, N: int, t: float) -> None:
+
+        norms = []
+        M_sp = petsc2scipy(self.K_mono)
+        
+        for i,j in self.block_indices:
+            block_is = self.split_nest_row_indices[i]
+            block_js = self.split_nest_row_indices[j]
+            M_ij = M_sp[block_is,:][:,block_js]
+            norms.append(scipy.sparse.linalg.norm(M_ij, ord="fro"))
 
         self.counter += 1
 

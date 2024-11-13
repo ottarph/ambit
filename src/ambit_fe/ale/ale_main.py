@@ -199,6 +199,7 @@ class AleProblem(problem_base):
 
         from .ale_external import add_my_hook, add_my_hook_parallel
         self.residual_assembly_hooks = []
+        return
         assert 'MAT1' in constitutive_models and len(constitutive_models) == 1
         if 'weak_form_don' in constitutive_models["MAT1"]:
             if self.V_d.mesh.comm.size == 0:
