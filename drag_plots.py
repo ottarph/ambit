@@ -4,19 +4,19 @@ import matplotlib.pyplot as plt
 results_base = "demos/fsi/tmp/results_fsi_channel_flag_turek_FSI2_r2000_"
 results_base = "demos/fsi/tmp/results_fsi_channel_flag_turek_FSI2_r2500_"
 results_base = "demos/fsi/tmp_1proc/results_fsi_channel_flag_turek_FSI2_"
-results_base = "demos/fsi/tmp_tri/16proc/results_fsi_channel_flag_turek_FSI2_"
-results_base = "demos/fsi/tmp_tri/16proc/results_fsi_channel_flag_turek_FSI2_r3500_"
+results_base = "demos/fsi/tmp_tri/16proc_ost/results_fsi_channel_flag_turek_FSI2_"
+# results_base = "demos/fsi/tmp_tri/16proc/results_fsi_channel_flag_turek_FSI2_r3000_"
 results_post = ".txt"
 
-ADD_REF = False
-TIME_CROP = False
+ADD_REF = True
+TIME_CROP = True
 REFERENCE_SLICE = 1
 if ADD_REF:
     DON_STYLE = "r:"
     REF_STYLE = "k-"
 else:
     DON_STYLE = "k-"
-crop_a, crob_b = 10.0, 10.2
+crop_a, crob_b = 12.0, 14.0
 
 print(results_base+"drag"+results_post)
 

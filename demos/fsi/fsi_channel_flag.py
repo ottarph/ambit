@@ -18,7 +18,7 @@ def main():
     try: import sys; restart_step = int(sys.argv[1])
     except: restart_step = 0
 
-    restart_step = 3000
+    restart_step = 0
     
     case = 'FSI2' # 'FSI2', 'FSI3'
 
@@ -35,7 +35,7 @@ def main():
         Ubar = 1e3 # mm/s
         # max simulation time until periodic
         maxtime = 15.0
-        maxtime = 12.1
+        # maxtime = 12.1
         dt_ref = 0.0005
         dt_large = 0.004
     elif case=='FSI3':
@@ -67,17 +67,17 @@ def main():
                             'problem_type'          : 'fsi',
                             'USE_OLD_DOLFINX_MIXED_BRANCH' : True,
                             # at which step frequency to write results
-                            'write_results_every'   : 1,
-                            'write_restart_every'   : 3000,
+                            'write_results_every'   : 5,
+                            'write_restart_every'   : 500,
                             'restart_step'          : restart_step,
                             # where to write the output to
-                            'output_path'           : basepath+'/tmp_tri_coarse/1proc',
+                            'output_path'           : basepath+'/tmp_tri/16proc_ost',
                             # 'mesh_domain'           : basepath+'/input/channel-flag_domain.xdmf',
                             # 'mesh_boundary'         : basepath+'/input/channel-flag_boundary.xdmf',
-                            'mesh_domain': basepath+'/input/tri_cell_mesh_coarse.xdmf',
-                            'mesh_boundary': basepath+'/input/tri_facet_mesh_coarse.xdmf',
+                            'mesh_domain': basepath+'/input/tri_cell_mesh.xdmf',
+                            'mesh_boundary': basepath+'/input/tri_facet_mesh.xdmf',
                             # 'results_to_write'      : [['displacement','velocity'], [['fluiddisplacement','velocity','pressure'],['aledisplacement','alevelocity']]],
-                            # 'results_to_write'      : [[], [['velocity','pressure'],['aledisplacement']]],
+                            'results_to_write'      : [[], [['velocity','pressure'],['aledisplacement']]],
                             'results_to_write'      : [[], [[],[]]],
                             'domain_ids_solid'      : [1], 
                             'domain_ids_fluid'      : [2],
@@ -99,8 +99,10 @@ def main():
     """
     TIME_PARAMS_SOLID    = {'maxtime'               : maxtime,
                             'dt'                    : dt,
-                            'timint'                : 'genalpha', # Generalized-alpha time-integration scheme (Chung and Hulbert 1993)
-                            'rho_inf_genalpha'      : 1.0, # spectral radius of Gen-alpha: 1.0 (= no high-freq. damping) yields alpha_m = alpha_f = 0.5, beta = 0.25, gamma = 0.5
+                            'timint'                : 'ost',
+                            'theta_ost'             : 0.5+dt,
+                            # 'timint'                : 'genalpha', # Generalized-alpha time-integration scheme (Chung and Hulbert 1993)
+                            # 'rho_inf_genalpha'      : 1.0, # spectral radius of Gen-alpha: 1.0 (= no high-freq. damping) yields alpha_m = alpha_f = 0.5, beta = 0.25, gamma = 0.5
                             # how to evaluat nonlinear terms f(x) in the midpoint time-integration scheme:
                             # trapezoidal: theta * f(x_{n+1}) + (1-theta) * f(x_{n})
                             # midpoint:    f(theta*x_{n+1} + (1-theta)*x_{n})
@@ -111,8 +113,10 @@ def main():
     """
     TIME_PARAMS_FLUID    = {'maxtime'               : maxtime,
                             'dt'                    : dt,
-                            'timint'                : 'genalpha', # Generalized-alpha time-integration scheme (Jansen et al. 2000)
-                            'rho_inf_genalpha'      : 1.0, # spectral radius of Gen-alpha: 1.0 (= no high-freq. damping) yields alpha_m = alpha_f = 0.5, gamma = 0.5
+                            'timint'                : 'ost',
+                            'theta_ost'             : 0.5+dt,
+                            # 'timint'                : 'genalpha', # Generalized-alpha time-integration scheme (Jansen et al. 2000)
+                            # 'rho_inf_genalpha'      : 1.0, # spectral radius of Gen-alpha: 1.0 (= no high-freq. damping) yields alpha_m = alpha_f = 0.5, gamma = 0.5
                             # how to evaluate nonlinear terms f(x) in the midpoint time-integration scheme:
                             # trapezoidal: theta * f(x_{n+1}) + (1-theta) * f(x_{n})
                             # midpoint:    f(theta*x_{n+1} + (1-theta)*x_{n})
@@ -215,34 +219,34 @@ def main():
         MinimizerDetFHook(problem.mp, qoi_base_path+'_minimizerDetF.txt'),
     ]
 
-    from tools.output_hooks import MinScaledJacobianHook, ResetCounter, MatrixBlockNorm, \
-        MatrixBlockNormInterfaceALESerialScipy
-    problem.mp.pbfa.pba.residual_assembly_hooks.extend([
-        MinScaledJacobianHook(problem.mp, qoi_base_path+'_newton_iter_min_scaled_jacobian.txt',
-                                    include_internal_counter=True, write_time=False),
-        MatrixBlockNorm(problem.mp, qoi_base_path+'_newton_iter_blocknorms.txt', 
-                        ((0,0),               (0,3), 
-                                (1,1), (1,2), (1,3), (1,4), 
-                                (2,1),               (2,4), # (2,2) is nonzero only when using stabilization for pressure
-                         (3,0), (3,1),
-                                (4,1),               (4,4)),
-                        write_time=False, include_internal_counter=True),
-        MatrixBlockNormInterfaceALESerialScipy(problem.mp, problem.ms, qoi_base_path+'_newton_iter_blocknormsALEint.txt', 
-                        ((0,0),               (0,3), 
-                                (1,1), (1,2), (1,3), (1,4), (1,5),
-                                (2,1),               (2,4), (2,5), # (2,2) is nonzero only when using stabilization for pressure
-                         (3,0), (3,1),
-                                (4,1),               (4,4), (4,5),
-                                (5,1),               (5,4), (5,5)),
-                        interface_tag=11,
-                        write_time=False, include_internal_counter=True),
-        ])
+    # from tools.output_hooks import MinScaledJacobianHook, ResetCounter, MatrixBlockNorm, \
+    #     MatrixBlockNormInterfaceALESerialScipy
+    # problem.mp.pbfa.pba.residual_assembly_hooks.extend([
+    #     MinScaledJacobianHook(problem.mp, qoi_base_path+'_newton_iter_min_scaled_jacobian.txt',
+    #                                 include_internal_counter=True, write_time=False),
+    #     MatrixBlockNorm(problem.mp, qoi_base_path+'_newton_iter_blocknorms.txt', 
+    #                     ((0,0),               (0,3), 
+    #                             (1,1), (1,2), (1,3), (1,4), 
+    #                             (2,1),               (2,4), # (2,2) is nonzero only when using stabilization for pressure
+    #                      (3,0), (3,1),
+    #                             (4,1),               (4,4)),
+    #                     write_time=False, include_internal_counter=True),
+    #     MatrixBlockNormInterfaceALESerialScipy(problem.mp, problem.ms, qoi_base_path+'_newton_iter_blocknormsALEint.txt', 
+    #                     ((0,0),               (0,3), 
+    #                             (1,1), (1,2), (1,3), (1,4), (1,5),
+    #                             (2,1),               (2,4), (2,5), # (2,2) is nonzero only when using stabilization for pressure
+    #                      (3,0), (3,1),
+    #                             (4,1),               (4,4), (4,5),
+    #                             (5,1),               (5,4), (5,5)),
+    #                     interface_tag=11,
+    #                     write_time=False, include_internal_counter=True),
+    #     ])
 
-    problem.mp.output_hooks.extend([
-        ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-1]),
-        ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-2]),
-        ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-3]),
-    ])
+    # problem.mp.output_hooks.extend([
+    #     ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-1]),
+    #     ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-2]),
+    #     ResetCounter(problem.mp.pbfa.pba.residual_assembly_hooks[-3]),
+    # ])
 
     # Call the Ambit solver to solve the problem
     problem.solve_problem()
